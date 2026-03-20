@@ -1,5 +1,7 @@
 # MTG Event Tracker
 
+> **Transparency notice:** This project was vibe-coded using [Claude Code](https://claude.ai/claude-code) by Anthropic. The entire codebase — backend API, frontend, database migrations, Docker configuration, and this README — was built through an AI-assisted development session. No warranty is expressed or implied; review all code before deploying to production.
+
 A full-stack web application for running Magic: The Gathering tournaments. Supports Swiss and elimination formats, manual match pairings, deck registration with Scryfall card search, live round timers, and a public event status board.
 
 ---
