@@ -34,6 +34,15 @@ public class DecksController : ControllerBase
         return result == null ? NotFound() : Ok(result);
     }
 
+    // GET /api/events/{eventId}/deck/view/{playerId}  — public: anyone can view a submitted deck
+    [HttpGet("view/{playerId}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetDeckForView(int eventId, int playerId)
+    {
+        var deck = await _decks.GetDeckForViewAsync(eventId, playerId);
+        return deck == null ? NotFound() : Ok(deck);
+    }
+
     // GET /api/events/{eventId}/deck/all  — admin sees all submitted decks
     [HttpGet("all")]
     [Authorize(Roles = "admin")]

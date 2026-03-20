@@ -9,6 +9,7 @@ public interface IDeckService
 {
     Task<(DeckSubmissionResponse? result, string? error)> SubmitDeckAsync(int eventId, int playerId, SubmitDeckRequest request);
     Task<DeckSubmissionResponse?> GetMyDeckAsync(int eventId, int playerId);
+    Task<DeckSubmissionResponse?> GetDeckForViewAsync(int eventId, int playerId);
     Task<List<DeckSubmissionResponse>> GetAllDecksAsync(int eventId);
 }
 
@@ -75,6 +76,9 @@ public class DeckService : IDeckService
 
         return submission == null ? null : ToResponse(submission);
     }
+
+    public Task<DeckSubmissionResponse?> GetDeckForViewAsync(int eventId, int playerId)
+        => GetMyDeckAsync(eventId, playerId);
 
     public async Task<List<DeckSubmissionResponse>> GetAllDecksAsync(int eventId)
     {

@@ -35,3 +35,8 @@ export const submitDeck = (eventId: number, cards: DeckCardRequest[]) =>
 
 export const getAllDecks = (eventId: number) =>
   client.get<DeckSubmissionResponse[]>(`/events/${eventId}/deck/all`).then((r) => r.data);
+
+// Public — no auth required (uses plain axios to avoid 401-redirect interceptor)
+import axios from 'axios';
+export const getDeckForView = (eventId: number, playerId: number) =>
+  axios.get<DeckSubmissionResponse>(`/api/events/${eventId}/deck/view/${playerId}`).then((r) => r.data);

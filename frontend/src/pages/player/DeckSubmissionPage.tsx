@@ -4,6 +4,8 @@ import { getEvent, EventResponse } from '../../api/events';
 import { getMyDeck, submitDeck, DeckCardRequest, DeckSubmissionResponse } from '../../api/decks';
 import { getMyDecks, PlayerDeckResponse } from '../../api/playerDecks';
 import { autocomplete, getCardByName, getCardImageUri, ScryfallCard } from '../../api/scryfall';
+import { useAuth } from '../../context/AuthContext';
+import DeckGridView from '../../components/DeckGridView';
 
 type Section = 'MainDeck' | 'Sideboard' | 'Commander';
 const SECTION_NUM: Record<Section, number> = { MainDeck: 0, Sideboard: 1, Commander: 2 };
@@ -64,6 +66,7 @@ function mergeCards(existing: LocalCard[], incoming: LocalCard[]): LocalCard[] {
 export default function DeckSubmissionPage() {
   const { id } = useParams<{ id: string }>();
   const eventId = parseInt(id!);
+  const { user } = useAuth();
 
   const [event, setEvent] = useState<EventResponse | null>(null);
   const [existing, setExisting] = useState<DeckSubmissionResponse | null>(null);
@@ -74,6 +77,9 @@ export default function DeckSubmissionPage() {
   const [loading, setLoading] = useState(true);
   const [savedDecks, setSavedDecks] = useState<PlayerDeckResponse[]>([]);
   const [loadDeckId, setLoadDeckId] = useState<string>('');
+
+  // View mode: 'edit' shows card list, 'grid' shows image grid
+  const [viewMode, setViewMode] = useState<'edit' | 'grid'>('edit');
 
   // Left panel tab
   const [tab, setTab] = useState<'search' | 'import'>('search');
@@ -547,11 +553,43 @@ export default function DeckSubmissionPage() {
                 </span>
               )}
             </div>
-            {cards.length > 0 && (
-              <button style={s.clearBtn} onClick={() => { if (confirm('Clear entire deck?')) setCards([]); }}>
-                Clear
-              </button>
-            )}
+            <div style={s.deckActions}>
+              {cards.length > 0 && (
+                <>
+                  {/* View toggle */}
+                  <div style={s.viewToggle}>
+                    <button
+                      style={{ ...s.toggleBtn, ...(viewMode === 'edit' ? s.toggleBtnActive : {}) }}
+                      onClick={() => setViewMode('edit')}
+                      title="List view"
+                    >
+                      ☰ List
+                    </button>
+                    <button
+                      style={{ ...s.toggleBtn, ...(viewMode === 'grid' ? s.toggleBtnActive : {}) }}
+                      onClick={() => setViewMode('grid')}
+                      title="Grid view"
+                    >
+                      ⊞ Grid
+                    </button>
+                  </div>
+                  {/* Share link — only available after deck is saved */}
+                  {existing && user && (
+                    <Link
+                      to={`/events/${eventId}/deck/view/${user.userId}`}
+                      target="_blank"
+                      style={s.showBtn}
+                      title="Open shareable deck view"
+                    >
+                      Show Deck ↗
+                    </Link>
+                  )}
+                  <button style={s.clearBtn} onClick={() => { if (confirm('Clear entire deck?')) setCards([]); }}>
+                    Clear
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
           {cards.length === 0 ? (
@@ -562,7 +600,20 @@ export default function DeckSubmissionPage() {
                 Search for a card or use Paste Import to add your whole list at once.
               </div>
             </div>
+          ) : viewMode === 'grid' ? (
+            /* ── Grid view ── */
+            <DeckGridView
+              cards={cards.map((c, id) => ({
+                id,
+                cardName: c.cardName,
+                quantity: c.quantity,
+                section: c.section,
+                isProxy: c.isProxy,
+              }))}
+              showProxyGlow={event.proxiesAllowed}
+            />
           ) : (
+            /* ── List view ── */
             <>
               {commander.length > 0 && (
                 <CardSection
@@ -766,6 +817,11 @@ const s: Record<string, React.CSSProperties> = {
   deckHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' },
   deckTitle: { color: '#94a3b8', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' },
   deckStats: { marginLeft: '10px', color: '#475569', fontWeight: 400, fontSize: '11px', textTransform: 'none', letterSpacing: 0 },
+  deckActions: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' },
+  viewToggle: { display: 'flex', borderRadius: '6px', overflow: 'hidden', border: '1px solid #334155' },
+  toggleBtn: { background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '11px', padding: '3px 9px', fontWeight: 600 },
+  toggleBtnActive: { backgroundColor: '#1e3a5f', color: '#a855f7' },
+  showBtn: { backgroundColor: '#0ea5e9', color: 'white', border: 'none', borderRadius: '5px', padding: '3px 10px', fontSize: '12px', fontWeight: 600, textDecoration: 'none', display: 'inline-block' },
   clearBtn: { background: 'none', border: '1px solid #334155', color: '#475569', cursor: 'pointer', fontSize: '12px', padding: '3px 10px', borderRadius: '4px' },
   emptyDeck: { textAlign: 'center', padding: '36px 16px', color: '#475569', fontSize: '14px' },
   emptyIcon: { fontSize: '32px', marginBottom: '10px' },

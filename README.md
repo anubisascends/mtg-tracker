@@ -29,6 +29,8 @@ A full-stack web application for running Magic: The Gathering tournaments. Suppo
 - Drop from or undrop from an in-progress event
 - **Deck Registration** — build and save personal decks using Scryfall autocomplete, card image previews, and paste-import from Arena / MTGO / Moxfield format
 - **My Decks** — maintain a personal deck library and load any saved deck when registering for an event
+- **Deck Grid View** — switch between list and image-grid view of your submitted deck; proxy cards are highlighted with a red glow so they are immediately identifiable
+- **Shareable Deck View** — share a public link to your deck (no login required) so another player can scroll through your card images on their phone
 - View standings and match history
 
 ### For Admins
@@ -173,8 +175,34 @@ Credentials are whatever you set in your `.env` file.
 | Role | Username | Email | Password |
 |---|---|---|---|
 | Admin | `admin` | `admin@mtg.local` | `Admin123!` |
+| Players (×8) | see CSV | see CSV | `password123` |
 
 > Change these before deploying to any shared or public environment.
+
+### Sample Data
+
+On first run with `SEED_DEV_DATA=true`, the seeder creates **8 sample players** and **3 events**:
+
+| Event | Format | Status | Deck Reg |
+|---|---|---|---|
+| Sample Draft Tournament | Draft | In Progress / Round 1 | No |
+| Planning Event | Draft | Planning | No |
+| Commander Night | Commander | In Progress / Round 1 | Yes — proxies allowed |
+
+Each player has a unique Commander deck submitted to **Commander Night** — four with proxy cards (marked with a red glow in grid view), four with no proxies:
+
+| Player | Commander | Proxies |
+|---|---|---|
+| Kira Stormveil | Atraxa, Praetors' Voice | Jace the Mind Sculptor, Doubling Season, Mana Crypt |
+| Draven Ashlock | Edgar Markov | None |
+| Sable Nighthollow | Meren of Clan Nel Toth | Craterhoof Behemoth, Survival of the Fittest, Gaea's Cradle |
+| Cass Ironmore | Kaalia of the Vast | None |
+| Joryn Blackfen | Prossh, Skyraider of Kher | Food Chain, Imperial Recruiter, Carpet of Flowers |
+| Tomas Brightwick | Breya, Etherium Shaper | None |
+| Rena Duskwhisper | Zur the Enchanter | Necropotence, Mana Drain, Force of Will |
+| Filo Starcroft | Yidris, Maelstrom Wielder | None |
+
+To reset seed data, delete `backend/mtg-dev.db` and restart the backend.
 
 ---
 
@@ -201,6 +229,11 @@ Two ways to add cards:
 - **Paste Import** — paste a full decklist from Arena, MTGO, Moxfield, or plain `4 Card Name` format; preview the parsed list, then merge into or replace the current deck
 
 Load from a saved deck using the dropdown at the top of the page.
+
+Toggle between **☰ List** and **⊞ Grid** view at any time. Grid view lazy-loads Scryfall card images and highlights proxy cards with a red glow border. Once a deck is saved, the **Show Deck ↗** button opens a public shareable page optimised for mobile — hand your phone to your opponent so they can browse your list.
+
+**Public Deck View — `/events/:eventId/deck/view/:playerId`**
+*No login required.* Displays a player's submitted deck as a scrollable image grid. Proxy cards are clearly marked with a red glow. The **🔗 Share** button copies the URL to the clipboard.
 
 **My Decks — `/my-decks`**
 Personal deck library independent of any event. Build, edit, and delete decks. Saved decks appear in the load dropdown on any event's deck submission page.
@@ -249,14 +282,14 @@ mtg-tracker/
 │
 ├── frontend/                  # React + TypeScript + Vite
 │   ├── src/
-│   │   ├── api/               # Axios API clients (events, decks, matches…)
-│   │   ├── components/        # Shared UI (Layout, PrivateRoute…)
+│   │   ├── api/               # Axios API clients (events, decks, matches, scryfall…)
+│   │   ├── components/        # Shared UI (Layout, PrivateRoute, DeckGridView…)
 │   │   ├── context/           # AuthContext (JWT storage)
 │   │   ├── hooks/             # useIsMobile, useTimer
 │   │   └── pages/
 │   │       ├── admin/         # ManageEventsPage, EventFormPage…
 │   │       ├── player/        # EventDetailPage, MyDecksPage, DeckSubmissionPage…
-│   │       └── public/        # EventStatusPage, EventStatusListPage
+│   │       └── public/        # EventStatusPage, EventStatusListPage, DeckViewPage
 │   ├── Dockerfile
 │   ├── nginx.conf
 │   └── vite.config.ts
@@ -274,5 +307,7 @@ mtg-tracker/
 > - Public event status board (`/status/:id`)
 > - Player event detail with active match card (`/events/:id`)
 > - Deck submission page with card search and paste import (`/events/:id/deck`)
+> - Deck grid view with proxy glow (`/events/:id/deck` — toggle ⊞ Grid)
+> - Public shareable deck view on mobile (`/events/:eventId/deck/view/:playerId`)
 > - My Decks library (`/my-decks`)
 > - Admin event management with match panel (`/admin/events`)

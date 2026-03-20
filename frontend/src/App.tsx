@@ -15,6 +15,7 @@ import EventFormPage from './pages/admin/EventFormPage';
 import ManagePlayersPage from './pages/admin/ManagePlayersPage';
 import EventStatusListPage from './pages/public/EventStatusListPage';
 import EventStatusPage from './pages/public/EventStatusPage';
+import DeckViewPage from './pages/public/DeckViewPage';
 import DeckSubmissionPage from './pages/player/DeckSubmissionPage';
 import MyDecksPage from './pages/player/MyDecksPage';
 
@@ -26,6 +27,7 @@ export default function App() {
           {/* Public routes — no login required */}
           <Route path="/status" element={<EventStatusListPage />} />
           <Route path="/status/:id" element={<EventStatusPage />} />
+          <Route path="/events/:eventId/deck/view/:playerId" element={<DeckViewPage />} />
 
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
