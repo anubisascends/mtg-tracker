@@ -1,0 +1,37 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - Jwt__Secret=${JWT_SECRET}
+      - Jwt__Issuer=MtgTracker
+      - Jwt__Audience=MtgTracker
+      - ConnectionStrings__DefaultConnection=Data Source=/app/data/mtg.db
+      - AdminSeed__Email=${ADMIN_EMAIL}
+      - AdminSeed__Password=${ADMIN_PASSWORD}
+      - AdminSeed__Username=${ADMIN_USERNAME:-admin}
+    volumes:
+      - mtg-data:/app/data
+    networks:
+      - mtg-net
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - mtg-net
+    restart: unless-stopped
+
+volumes:
+  mtg-data:
+
+networks:
+  mtg-net:
