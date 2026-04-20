@@ -23,6 +23,12 @@ const LIFECYCLE_LABELS: Record<string, string> = {
   Completed:  'Completed',
 };
 
+function fmtTime(t: string): string {
+  const [h, m] = t.split(':');
+  const hour = parseInt(h);
+  return `${hour % 12 || 12}:${m} ${hour >= 12 ? 'PM' : 'AM'}`;
+}
+
 function statusColor(s: string) {
   return ({ Planning: '#94a3b8', Upcoming: '#f59e0b', InProgress: '#22c55e', Completed: '#64748b' } as Record<string, string>)[s] ?? '#94a3b8';
 }
@@ -107,6 +113,7 @@ export default function EventStatusPage() {
           {[
             event.format,
             new Date(event.date).toLocaleDateString(),
+            event.startTime ? `${fmtTime(event.startTime)}${event.endTime ? `\u2013${fmtTime(event.endTime)}` : ''}` : null,
             `${event.registeredCount}/${event.maxPlayers} players`,
             event.eliminationType ? event.eliminationType.replace(/([A-Z])/g, ' $1').trim() : null,
             event.currentRound > 0 ? `Round ${event.currentRound}` : null,
@@ -147,6 +154,16 @@ interface ViewProps {
 }
 
 function LandscapeView({ event, currentMatches, scores }: ViewProps) {
+  if (event.status === 'Completed') {
+    return (
+      <div style={{ flex: 1, display: 'grid', gridTemplateRows: 'auto 1fr', gap: '10px', padding: '10px', overflow: 'hidden', minHeight: 0 }}>
+        <Winners scores={scores} />
+        <Panel label="Final Standings">
+          <Standings scores={scores} />
+        </Panel>
+      </div>
+    );
+  }
   return (
     <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr auto', gap: '10px', padding: '10px', overflow: 'hidden', minHeight: 0 }}>
       <Panel label={event.currentRound > 0 ? `Round ${event.currentRound} — Matches` : 'Matches'}>
@@ -160,6 +177,16 @@ function LandscapeView({ event, currentMatches, scores }: ViewProps) {
 }
 
 function PortraitView({ event, currentMatches, scores }: ViewProps) {
+  if (event.status === 'Completed') {
+    return (
+      <div style={{ flex: 1, display: 'grid', gridTemplateRows: 'auto 1fr', gap: '10px', padding: '10px', overflow: 'hidden', minHeight: 0 }}>
+        <Winners scores={scores} />
+        <Panel label="Final Standings">
+          <Standings scores={scores} />
+        </Panel>
+      </div>
+    );
+  }
   return (
     <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr auto', gap: '10px', padding: '10px', overflow: 'hidden', minHeight: 0 }}>
       <Panel label={event.currentRound > 0 ? `Round ${event.currentRound} — Matches` : 'Matches'}>
@@ -228,6 +255,45 @@ function MatchList({ matches, large }: { matches: MatchResponse[]; large?: boole
           </div>
         );
       })}
+    </div>
+  );
+}
+
+const PLACE_STYLE = [
+  { label: '1st', color: '#f59e0b', border: '#d97706', bg: '#1f1600' },
+  { label: '2nd', color: '#94a3b8', border: '#64748b', bg: '#131820' },
+  { label: '3rd', color: '#c2895a', border: '#9a6640', bg: '#1a1209' },
+];
+
+function Winners({ scores }: { scores: EventPlayerScore[] }) {
+  const eligible = scores.filter((s) => !s.isDropped);
+  if (eligible.length === 0) return null;
+
+  const uniquePoints = [...new Set(eligible.map((s) => s.points))].sort((a, b) => b - a);
+  const top3 = uniquePoints.slice(0, 3);
+  if (top3.length === 0) return null;
+
+  return (
+    <div style={{ background: '#161b27', border: '1px solid #1e2636', borderRadius: '10px', padding: '16px 20px', flexShrink: 0 }}>
+      <div style={{ fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '14px' }}>Winners</div>
+      <div style={{ display: 'flex', gap: '12px' }}>
+        {top3.map((pts, placeIdx) => {
+          const cfg = PLACE_STYLE[placeIdx];
+          const players = eligible.filter((s) => s.points === pts);
+          return (
+            <div key={pts} style={{ flex: placeIdx === 0 ? 1.4 : 1, background: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: '10px', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '6px', boxShadow: placeIdx === 0 ? `0 0 20px ${cfg.border}44` : 'none' }}>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: cfg.color, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{cfg.label} Place</div>
+              <div style={{ fontSize: placeIdx === 0 ? '22px' : '18px', fontWeight: 700, color: '#f1f5f9', lineHeight: 1.2 }}>
+                {players.map((p) => p.playerDisplayName).join(' · ')}
+              </div>
+              <div>
+                <span style={{ fontSize: '28px', fontWeight: 800, color: cfg.color, lineHeight: 1 }}>{pts}</span>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: cfg.border, marginLeft: '4px' }}>pts</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

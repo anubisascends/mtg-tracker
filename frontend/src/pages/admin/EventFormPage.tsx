@@ -8,6 +8,8 @@ interface FormData {
   description: string;
   format: string;
   date: string;
+  startTime: string;
+  endTime: string;
   maxPlayers: number;
   eliminationType: number;
   requiresDeckRegistration: boolean;
@@ -42,6 +44,8 @@ export default function EventFormPage() {
           description: ev.description,
           format: ev.format,
           date: ev.date.split('T')[0],
+          startTime: ev.startTime ? ev.startTime.slice(0, 5) : '',
+          endTime: ev.endTime ? ev.endTime.slice(0, 5) : '',
           maxPlayers: ev.maxPlayers,
           eliminationType: elimMap[ev.eliminationType] ?? 0,
           requiresDeckRegistration: ev.requiresDeckRegistration,
@@ -95,7 +99,7 @@ export default function EventFormPage() {
         </div>
 
         <div style={styles.row}>
-          <div style={{ ...styles.field, flex: 1 }}>
+          <div style={{ ...styles.field, flex: 2 }}>
             <label style={styles.label}>Format</label>
             <select
               style={{ ...styles.input, ...(fieldsLocked ? styles.inputLocked : {}) }}
@@ -109,6 +113,32 @@ export default function EventFormPage() {
           </div>
 
           <div style={{ ...styles.field, flex: 1 }}>
+            <label style={styles.label}>Max Players</label>
+            <input
+              style={styles.input}
+              type="number"
+              min={2}
+              max={512}
+              {...register('maxPlayers', { required: true, min: 2, valueAsNumber: true })}
+            />
+          </div>
+
+          <div style={{ ...styles.field, flex: 2 }}>
+            <label style={styles.label}>Elimination Type</label>
+            <select
+              style={{ ...styles.input, ...(fieldsLocked ? styles.inputLocked : {}) }}
+              disabled={fieldsLocked}
+              {...register('eliminationType', { valueAsNumber: true })}
+            >
+              {ELIMINATION_TYPES.map((et) => (
+                <option key={et.value} value={et.value}>{et.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div style={styles.row}>
+          <div style={{ ...styles.field, flex: 2 }}>
             <label style={styles.label}>Date</label>
             <input
               style={{ ...styles.input, ...(fieldsLocked ? styles.inputLocked : {}) }}
@@ -120,27 +150,21 @@ export default function EventFormPage() {
           </div>
 
           <div style={{ ...styles.field, flex: 1 }}>
-            <label style={styles.label}>Max Players</label>
+            <label style={styles.label}>Start Time</label>
             <input
               style={styles.input}
-              type="number"
-              min={2}
-              max={512}
-              {...register('maxPlayers', { required: true, min: 2, valueAsNumber: true })}
+              type="time"
+              {...register('startTime')}
             />
           </div>
 
           <div style={{ ...styles.field, flex: 1 }}>
-            <label style={styles.label}>Elimination Type</label>
-            <select
-              style={{ ...styles.input, ...(fieldsLocked ? styles.inputLocked : {}) }}
-              disabled={fieldsLocked}
-              {...register('eliminationType', { valueAsNumber: true })}
-            >
-              {ELIMINATION_TYPES.map((et) => (
-                <option key={et.value} value={et.value}>{et.label}</option>
-              ))}
-            </select>
+            <label style={styles.label}>End Time</label>
+            <input
+              style={styles.input}
+              type="time"
+              {...register('endTime')}
+            />
           </div>
         </div>
 

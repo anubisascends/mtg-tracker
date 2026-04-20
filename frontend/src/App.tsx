@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { useAuth } from './context/AuthContext';
 import PrivateRoute from './components/PrivateRoute';
 import AdminRoute from './components/AdminRoute';
 import Layout from './components/Layout';
@@ -18,6 +19,14 @@ import EventStatusPage from './pages/public/EventStatusPage';
 import DeckViewPage from './pages/public/DeckViewPage';
 import DeckSubmissionPage from './pages/player/DeckSubmissionPage';
 import MyDecksPage from './pages/player/MyDecksPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
+import EmailSettingsPage from './pages/admin/EmailSettingsPage';
+
+function RootRedirect() {
+  const { user, isAdmin } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  return <Navigate to={isAdmin ? '/admin' : '/events'} replace />;
+}
 
 export default function App() {
   return (
@@ -31,6 +40,7 @@ export default function App() {
 
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
 
           {/* Player routes */}
           <Route path="/events" element={<PrivateRoute><Layout><EventListPage /></Layout></PrivateRoute>} />
@@ -46,8 +56,9 @@ export default function App() {
           <Route path="/admin/events/new" element={<AdminRoute><Layout><EventFormPage /></Layout></AdminRoute>} />
           <Route path="/admin/events/:id/edit" element={<AdminRoute><Layout><EventFormPage /></Layout></AdminRoute>} />
           <Route path="/admin/players" element={<AdminRoute><Layout><ManagePlayersPage /></Layout></AdminRoute>} />
+          <Route path="/admin/settings/email" element={<AdminRoute><Layout><EmailSettingsPage /></Layout></AdminRoute>} />
 
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/" element={<RootRedirect />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </AuthProvider>

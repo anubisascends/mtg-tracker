@@ -14,6 +14,9 @@ public class UpdateEventRequest
 
     public DateTime? Date { get; set; }
 
+    public TimeOnly? StartTime { get; set; }
+    public TimeOnly? EndTime { get; set; }
+
     public EventStatus? Status { get; set; }
 
     [Range(2, 512)]

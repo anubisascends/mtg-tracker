@@ -40,6 +40,12 @@ export default function EventListPage() {
   );
 }
 
+function fmtTime(t: string): string {
+  const [h, m] = t.split(':');
+  const hour = parseInt(h);
+  return `${hour % 12 || 12}:${m} ${hour >= 12 ? 'PM' : 'AM'}`;
+}
+
 function statusColor(status: string): string {
   switch (status) {
     case 'Upcoming':   return '#f59e0b';
@@ -62,7 +68,7 @@ function EventCard({ event }: { event: EventResponse }) {
         <h3 style={styles.cardTitle}>{event.name}</h3>
         <span style={{ ...styles.badge, color, borderColor: color }}>{statusLabel(event.status)}</span>
       </div>
-      <p style={styles.cardMeta}>{event.format} &bull; {new Date(event.date).toLocaleDateString()}</p>
+      <p style={styles.cardMeta}>{event.format} &bull; {new Date(event.date).toLocaleDateString()}{event.startTime ? ` \u2022 ${fmtTime(event.startTime)}${event.endTime ? `\u2013${fmtTime(event.endTime)}` : ''}` : ''}</p>
       <p style={styles.cardDesc}>{event.description}</p>
       <p style={styles.cardPlayers}>{event.registeredCount} / {event.maxPlayers} players</p>
     </Link>

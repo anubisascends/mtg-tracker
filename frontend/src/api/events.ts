@@ -6,6 +6,8 @@ export interface EventResponse {
   description: string;
   format: string;
   date: string;
+  startTime: string | null;
+  endTime: string | null;
   status: string;
   runPhase: string | null;
   eliminationType: string;
@@ -24,6 +26,8 @@ export interface CreateEventRequest {
   description: string;
   format: string;
   date: string;
+  startTime?: string;
+  endTime?: string;
   maxPlayers: number;
   eliminationType?: number;
   requiresDeckRegistration?: boolean;
@@ -35,6 +39,8 @@ export interface UpdateEventRequest {
   description?: string;
   format?: string;
   date?: string;
+  startTime?: string;
+  endTime?: string;
   status?: number;
   maxPlayers?: number;
   eliminationType?: number;

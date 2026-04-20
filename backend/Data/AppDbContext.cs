@@ -15,6 +15,8 @@ public class AppDbContext : DbContext
     public DbSet<DeckCard> DeckCards => Set<DeckCard>();
     public DbSet<PlayerDeck> PlayerDecks => Set<PlayerDeck>();
     public DbSet<PlayerDeckCard> PlayerDeckCards => Set<PlayerDeckCard>();
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
+    public DbSet<EmailSettings> EmailSettings => Set<EmailSettings>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -59,6 +61,12 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<PlayerDeckCard>(e =>
         {
             e.HasOne(c => c.Deck).WithMany(d => d.Cards).HasForeignKey(c => c.PlayerDeckId);
+        });
+
+        modelBuilder.Entity<PasswordResetToken>(e =>
+        {
+            e.HasIndex(t => t.Token).IsUnique();
+            e.HasOne(t => t.User).WithMany().HasForeignKey(t => t.UserId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

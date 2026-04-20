@@ -7,6 +7,8 @@ public class Event
     public string Description { get; set; } = string.Empty;
     public string Format { get; set; } = string.Empty;
     public DateTime Date { get; set; }
+    public TimeOnly? StartTime { get; set; }
+    public TimeOnly? EndTime { get; set; }
     public EventStatus Status { get; set; } = EventStatus.Planning;
     public RunPhase? RunPhase { get; set; }
     public EliminationType EliminationType { get; set; } = EliminationType.Swiss;

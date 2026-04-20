@@ -16,6 +16,9 @@ public class CreateEventRequest
     [Required]
     public DateTime Date { get; set; }
 
+    public TimeOnly? StartTime { get; set; }
+    public TimeOnly? EndTime { get; set; }
+
     [Range(2, 512)]
     public int MaxPlayers { get; set; } = 8;
 

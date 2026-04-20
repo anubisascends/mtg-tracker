@@ -33,6 +33,7 @@ builder.Services.AddAuthorization();
 
 // Services
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IEmailService, SmtpEmailService>();
 builder.Services.AddScoped<IEventService, EventService>();
 builder.Services.AddScoped<IMatchService, MatchService>();
 builder.Services.AddScoped<IPlayerService, PlayerService>();
@@ -93,7 +94,7 @@ using (var scope = app.Services.CreateScope())
         db.SaveChanges();
     }
 
-    if (app.Environment.IsDevelopment())
+    if (builder.Configuration["SeedSampleData"] == "true")
         MtgTracker.Api.Data.DevDataSeeder.Seed(db);
 }
 

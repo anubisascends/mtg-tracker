@@ -20,7 +20,7 @@ export default function RegisterPage() {
   const onSubmit = async (data: FormData) => {
     try {
       const res = await registerApi(data);
-      login(res.token, { userId: res.userId, username: res.username, email: res.email, role: res.role });
+      login(res.token, { userId: res.userId, username: res.username, email: res.email, role: res.role }, true);
       navigate('/events');
     } catch {
       setError('Username or email already in use.');

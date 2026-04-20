@@ -97,7 +97,7 @@ export default function EventDetailPage() {
       <div style={{ ...s.header, flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'flex-start' : 'flex-start' }}>
         <div>
           <h1 style={s.title}>{event.name}</h1>
-          <p style={s.meta}>{event.format} &bull; {new Date(event.date).toLocaleDateString()} &bull; <StatusBadge status={event.status} /></p>
+          <p style={s.meta}>{event.format} &bull; {new Date(event.date).toLocaleDateString()}{event.startTime ? ` \u2022 ${fmtTime(event.startTime)}${event.endTime ? `\u2013${fmtTime(event.endTime)}` : ''}` : ''} &bull; <StatusBadge status={event.status} /></p>
           {event.description && <p style={s.desc}>{event.description}</p>}
         </div>
         <div style={{ ...s.actions, alignItems: isMobile ? 'flex-start' : 'flex-end', marginTop: isMobile ? '12px' : 0 }}>
@@ -215,6 +215,12 @@ export default function EventDetailPage() {
 }
 
 // ── Active match submission card ───────────────────────────────────────────────
+
+function fmtTime(t: string): string {
+  const [h, m] = t.split(':');
+  const hour = parseInt(h);
+  return `${hour % 12 || 12}:${m} ${hour >= 12 ? 'PM' : 'AM'}`;
+}
 
 function ActiveMatchCard({ match, myUserId, onSubmitted }: {
   match: MatchResponse;

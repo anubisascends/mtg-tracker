@@ -45,4 +45,14 @@ public class AuthController : ControllerBase
 
         return NoContent();
     }
+
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword(ResetPasswordRequest request)
+    {
+        var ok = await _auth.ResetPasswordWithTokenAsync(request.Token, request.NewPassword);
+        if (!ok)
+            return BadRequest(new { message = "This reset link is invalid or has expired." });
+
+        return NoContent();
+    }
 }

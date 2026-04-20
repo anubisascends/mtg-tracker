@@ -61,6 +61,8 @@ public class EventService : IEventService
             Description = request.Description,
             Format = request.Format,
             Date = request.Date,
+            StartTime = request.StartTime,
+            EndTime = request.EndTime,
             MaxPlayers = request.MaxPlayers,
             EliminationType = request.EliminationType,
             RequiresDeckRegistration = request.RequiresDeckRegistration,
@@ -87,6 +89,8 @@ public class EventService : IEventService
             if (request.RequiresDeckRegistration.HasValue) ev.RequiresDeckRegistration = request.RequiresDeckRegistration.Value;
             if (request.ProxiesAllowed.HasValue) ev.ProxiesAllowed = request.ProxiesAllowed.Value;
         }
+        if (request.StartTime.HasValue) ev.StartTime = request.StartTime.Value;
+        if (request.EndTime.HasValue) ev.EndTime = request.EndTime.Value;
         await _db.SaveChangesAsync();
         return ToResponse(ev);
     }
@@ -404,6 +408,8 @@ public class EventService : IEventService
         Description = ev.Description,
         Format = ev.Format,
         Date = ev.Date,
+        StartTime = ev.StartTime,
+        EndTime = ev.EndTime,
         Status = ev.Status.ToString(),
         RunPhase = ev.RunPhase?.ToString(),
         EliminationType = ev.EliminationType.ToString(),

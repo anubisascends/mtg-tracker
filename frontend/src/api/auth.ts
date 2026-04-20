@@ -19,3 +19,6 @@ export const changePassword = (data: { currentPassword: string; newPassword: str
 
 export const adminResetPassword = (playerId: number, newPassword: string) =>
   client.put(`/players/${playerId}/reset-password`, { newPassword });
+
+export const resetPasswordWithToken = (token: string, newPassword: string) =>
+  client.post('/auth/reset-password', { token, newPassword });

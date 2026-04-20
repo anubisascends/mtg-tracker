@@ -135,7 +135,7 @@ export default function ManageEventsPage() {
             const isPlaying = ev.status === 'InProgress' && ev.runPhase === 'Playing';
             const isTimerPhase = ev.status === 'InProgress' && (ev.runPhase === 'Drafting' || ev.runPhase === 'DeckBuilding');
             const isExpanded = expandedEventId === ev.id;
-            const canManagePlayers = ev.status === 'Planning' || ev.status === 'Upcoming';
+            const canManagePlayers = ev.status === 'Planning' || ev.status === 'Upcoming' || ev.status === 'InProgress';
             const isPlayersExpanded = expandedPlayersId === ev.id;
             const isTimerExpanded = expandedTimerId === ev.id;
             const isDecksExpanded = expandedDecksId === ev.id;

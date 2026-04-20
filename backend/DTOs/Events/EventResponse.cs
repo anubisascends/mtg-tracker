@@ -9,6 +9,8 @@ public class EventResponse
     public string Description { get; set; } = string.Empty;
     public string Format { get; set; } = string.Empty;
     public DateTime Date { get; set; }
+    public TimeOnly? StartTime { get; set; }
+    public TimeOnly? EndTime { get; set; }
     public string Status { get; set; } = string.Empty;
     public string? RunPhase { get; set; }
     public string EliminationType { get; set; } = string.Empty;

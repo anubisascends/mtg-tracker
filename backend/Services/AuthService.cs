@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -13,8 +14,12 @@ public interface IAuthService
 {
     Task<AuthResponse?> RegisterAsync(RegisterRequest request);
     Task<AuthResponse?> LoginAsync(LoginRequest request);
-Task<bool> ChangePasswordAsync(int userId, string currentPassword, string newPassword);
+    Task<bool> ChangePasswordAsync(int userId, string currentPassword, string newPassword);
     Task<bool> AdminResetPasswordAsync(int userId, string newPassword);
+    Task<AdminCreatePlayerResponse?> AdminCreatePlayerAsync(AdminCreatePlayerRequest request, IEmailService email);
+    Task<AdminCreatePlayerResponse?> GenerateInviteTokenAsync(int userId, IEmailService email);
+    Task<bool> SendInviteEmailAsync(int userId, IEmailService email, string baseUrl);
+    Task<bool> ResetPasswordWithTokenAsync(string token, string newPassword);
 }
 
 public class AuthService : IAuthService
@@ -77,6 +82,106 @@ public class AuthService : IAuthService
         if (user == null) return false;
 
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<AdminCreatePlayerResponse?> AdminCreatePlayerAsync(AdminCreatePlayerRequest request, IEmailService email)
+    {
+        if (await _db.Users.AnyAsync(u => u.Email == request.Email.ToLower()))
+            return null;
+        if (await _db.Users.AnyAsync(u => u.Username == request.Username))
+            return null;
+
+        var user = new User
+        {
+            Username = request.Username,
+            Email = request.Email.ToLower(),
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(Convert.ToHexString(RandomNumberGenerator.GetBytes(16))),
+            Role = "player",
+            Nickname = string.IsNullOrWhiteSpace(request.Nickname) ? null : request.Nickname.Trim(),
+            CreatedAt = DateTime.UtcNow
+        };
+        _db.Users.Add(user);
+        await _db.SaveChangesAsync();
+
+        var tokenString = await IssueResetTokenAsync(user.Id);
+
+        return new AdminCreatePlayerResponse
+        {
+            UserId = user.Id,
+            Username = user.Username,
+            Email = user.Email,
+            ResetToken = tokenString,
+            EmailConfigured = email.IsConfigured
+        };
+    }
+
+    public async Task<AdminCreatePlayerResponse?> GenerateInviteTokenAsync(int userId, IEmailService email)
+    {
+        var user = await _db.Users.FindAsync(userId);
+        if (user == null) return null;
+
+        var tokenString = await IssueResetTokenAsync(userId);
+
+        return new AdminCreatePlayerResponse
+        {
+            UserId = user.Id,
+            Username = user.Username,
+            Email = user.Email,
+            ResetToken = tokenString,
+            EmailConfigured = email.IsConfigured
+        };
+    }
+
+    public async Task<bool> SendInviteEmailAsync(int userId, IEmailService email, string baseUrl)
+    {
+        if (!email.IsConfigured) return false;
+
+        var entry = await _db.PasswordResetTokens
+            .Include(t => t.User)
+            .Where(t => t.UserId == userId && t.ExpiresAt > DateTime.UtcNow)
+            .OrderByDescending(t => t.ExpiresAt)
+            .FirstOrDefaultAsync();
+
+        if (entry == null) return false;
+
+        var resetLink = $"{baseUrl}/reset-password?token={entry.Token}";
+        try
+        {
+            await email.SendPasswordResetEmailAsync(entry.User.Email, entry.User.Username, resetLink);
+            return true;
+        }
+        catch { return false; }
+    }
+
+    private async Task<string> IssueResetTokenAsync(int userId)
+    {
+        var existing = _db.PasswordResetTokens.Where(t => t.UserId == userId);
+        _db.PasswordResetTokens.RemoveRange(existing);
+
+        var tokenString = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+        _db.PasswordResetTokens.Add(new PasswordResetToken
+        {
+            UserId = userId,
+            Token = tokenString,
+            ExpiresAt = DateTime.UtcNow.AddDays(7)
+        });
+        await _db.SaveChangesAsync();
+        return tokenString;
+    }
+
+    public async Task<bool> ResetPasswordWithTokenAsync(string token, string newPassword)
+    {
+        var entry = await _db.PasswordResetTokens
+            .Include(t => t.User)
+            .FirstOrDefaultAsync(t => t.Token == token);
+
+        if (entry == null || entry.ExpiresAt < DateTime.UtcNow)
+            return false;
+
+        entry.User.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+        _db.PasswordResetTokens.Remove(entry);
         await _db.SaveChangesAsync();
         return true;
     }

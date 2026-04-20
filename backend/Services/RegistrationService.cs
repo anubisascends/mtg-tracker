@@ -55,8 +55,8 @@ public class RegistrationService : IRegistrationService
     {
         var ev = await _db.Events.FindAsync(eventId);
         if (ev == null) return (null, "Event not found.");
-        if (ev.Status == EventStatus.InProgress || ev.Status == EventStatus.Completed)
-            return (null, "Cannot register players after an event has started.");
+        if (ev.Status == EventStatus.Completed)
+            return (null, "Cannot register players for a completed event.");
 
         var alreadyRegistered = await _db.EventRegistrations.AnyAsync(r => r.EventId == eventId && r.PlayerId == playerId);
         if (alreadyRegistered) return (null, "Player is already registered for this event.");
