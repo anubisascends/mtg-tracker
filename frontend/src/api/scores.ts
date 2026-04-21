@@ -14,6 +14,9 @@ export interface EventPlayerScore {
   eventLosses: number;
   isDropped: boolean;
   droppedAtRound: number;
+  opponentMatchWinPct: number;
+  gameWinPct: number;
+  opponentGameWinPct: number;
 }
 
 export const getEventScores = (eventId: number) =>

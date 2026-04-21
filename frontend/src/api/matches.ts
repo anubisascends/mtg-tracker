@@ -40,3 +40,6 @@ export const getEventMatches = (eventId: number) =>
   client.get<MatchResponse[]>(`/events/${eventId}/matches`).then((r) => r.data);
 
 export const deleteMatch = (id: number) => client.delete(`/matches/${id}`);
+
+export const reopenMatch = (id: number) =>
+  client.post<MatchResponse>(`/matches/${id}/reopen`).then((r) => r.data);

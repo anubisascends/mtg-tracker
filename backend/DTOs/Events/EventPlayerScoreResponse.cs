@@ -14,4 +14,7 @@ public class EventPlayerScoreResponse
     public bool IsDropped { get; set; }
     public int DroppedAtRound { get; set; }
     public int RegistrationId { get; set; }
+    public double OpponentMatchWinPct { get; set; }
+    public double GameWinPct { get; set; }
+    public double OpponentGameWinPct { get; set; }
 }

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getEvents, deleteEvent, advanceEvent, advanceRunPhase, reverseRunPhase, reverseStatus, generateNextRound, createPairing, startTimer, stopTimer, EventResponse } from '../../api/events';
 import { getAllDecks, DeckSubmissionResponse } from '../../api/decks';
-import { getEventMatches, recordMatchResult, deleteMatch, MatchResponse } from '../../api/matches';
+import { getEventMatches, recordMatchResult, deleteMatch, reopenMatch, MatchResponse } from '../../api/matches';
 import { getEventScores, EventPlayerScore } from '../../api/scores';
 import { useTimer, formatTimer } from '../../hooks/useTimer';
 import { getPlayers, PlayerResponse } from '../../api/players';
@@ -325,6 +325,9 @@ function MatchPanel({ eventId, currentRound, eliminationType, timerStartedAt, ti
   const activeCount = scores.filter((s) => !s.isEliminated && !s.isDropped).length;
   const allDone = pending.length === 0 && completed.length > 0;
   const canNextRound = allDone && activeCount >= 2;
+  const isSwiss = eliminationType === 'Swiss';
+  const totalPlayers = scores.length;
+  const recommendedRounds = totalPlayers > 1 ? Math.ceil(Math.log2(totalPlayers)) : 0;
 
   const handleDrop = async (registrationId: number) => {
     try {
@@ -355,6 +358,17 @@ function MatchPanel({ eventId, currentRound, eliminationType, timerStartedAt, ti
     }
   };
 
+  const handleReopen = async (matchId: number) => {
+    try {
+      await reopenMatch(matchId);
+      setFeedback('Match reopened — result cleared.');
+      setTimeout(() => setFeedback(''), 3000);
+      load();
+    } catch {
+      setFeedback('Failed to reopen match.');
+    }
+  };
+
   if (loading) return <div style={panelStyles.hint}>Loading matches...</div>;
 
   const activeUnpaired = scores.filter((s) => {
@@ -365,7 +379,16 @@ function MatchPanel({ eventId, currentRound, eliminationType, timerStartedAt, ti
   return (
     <div style={panelStyles.container}>
       <div style={panelStyles.header}>
-        <div style={panelStyles.title}>Round {currentRound} Matches</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <div style={panelStyles.title}>Round {currentRound} Matches</div>
+          {isSwiss && recommendedRounds > 0 && (
+            <div style={{ fontSize: '11px', color: currentRound >= recommendedRounds ? '#22c55e' : '#64748b' }}>
+              {currentRound >= recommendedRounds
+                ? `Recommended ${recommendedRounds} rounds complete`
+                : `Recommended: ${recommendedRounds} rounds for ${totalPlayers} players`}
+            </div>
+          )}
+        </div>
         {canNextRound && (
           <button style={panelStyles.nextRoundBtn} onClick={handleNextRound}>
             Start Round {currentRound + 1}
@@ -386,6 +409,7 @@ function MatchPanel({ eventId, currentRound, eliminationType, timerStartedAt, ti
         <PairingBuilder
           eventId={eventId}
           unpairedPlayers={activeUnpaired}
+          allMatches={matches}
           onPairingCreated={load}
         />
       )}
@@ -420,6 +444,11 @@ function MatchPanel({ eventId, currentRound, eliminationType, timerStartedAt, ti
               <span style={panelStyles.pts}>
                 {m.player1Points} pts / {m.isBye ? '–' : `${m.player2Points} pts`}
               </span>
+              {!m.isBye && (
+                <button style={panelStyles.reopenBtn} onClick={() => handleReopen(m.id)} title="Clear result and reopen for re-entry">
+                  Reopen
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -565,9 +594,10 @@ function RunPhasePipeline({ format, currentPhase }: { format: string; currentPha
   );
 }
 
-function PairingBuilder({ eventId, unpairedPlayers, onPairingCreated }: {
+function PairingBuilder({ eventId, unpairedPlayers, allMatches, onPairingCreated }: {
   eventId: number;
   unpairedPlayers: { playerId: number; playerDisplayName: string }[];
+  allMatches: MatchResponse[];
   onPairingCreated: () => void;
 }) {
   const [p1Id, setP1Id] = useState<number | ''>('');
@@ -589,6 +619,12 @@ function PairingBuilder({ eventId, unpairedPlayers, onPairingCreated }: {
       setError(err?.response?.data?.message ?? 'Failed to create pairing.');
     }
   };
+
+  const isRematch = p1Id !== '' && p2Id !== '' && p2Id !== 'bye' &&
+    allMatches.some((m) => !m.isBye && (
+      (m.player1Id === p1Id && m.player2Id === (p2Id as number)) ||
+      (m.player1Id === (p2Id as number) && m.player2Id === p1Id)
+    ));
 
   const p2Options = unpairedPlayers.filter((p) => p.playerId !== p1Id);
 
@@ -621,6 +657,7 @@ function PairingBuilder({ eventId, unpairedPlayers, onPairingCreated }: {
         </select>
         <button style={pb.btn} onClick={handlePair}>Pair</button>
       </div>
+      {isRematch && <div style={pb.warning}>These players have already been paired this event.</div>}
       {error && <div style={pb.error}>{error}</div>}
       {unpairedPlayers.length > 0 && (
         <div style={pb.unpaired}>
@@ -638,6 +675,7 @@ const pb: Record<string, React.CSSProperties> = {
   select: { padding: '6px 10px', backgroundColor: '#0f3460', border: '1px solid #334155', borderRadius: '4px', color: '#e2e8f0', fontSize: '13px', minWidth: '150px' },
   vs: { color: '#475569', fontSize: '12px', fontWeight: 600 },
   btn: { padding: '6px 16px', backgroundColor: '#a855f7', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 },
+  warning: { color: '#f59e0b', fontSize: '12px', marginTop: '8px' },
   error: { color: '#f87171', fontSize: '12px', marginTop: '8px' },
   unpaired: { color: '#475569', fontSize: '12px', marginTop: '8px' },
 };
@@ -1030,4 +1068,5 @@ const panelStyles: Record<string, React.CSSProperties> = {
   nextRoundBtn: { padding: '5px 14px', backgroundColor: '#0ea5e9', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 },
   deletePairingBtn: { background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '16px', padding: '0 4px', alignSelf: 'flex-end', lineHeight: 1 },
   errorMsg: { color: '#f87171', backgroundColor: '#3b1c1c', border: '1px solid #ef4444', padding: '8px 12px', borderRadius: '4px', fontSize: '13px', marginBottom: '12px' },
+  reopenBtn: { background: 'none', border: '1px solid #f59e0b', color: '#f59e0b', cursor: 'pointer', fontSize: '11px', padding: '2px 8px', borderRadius: '4px', marginLeft: '8px' },
 };

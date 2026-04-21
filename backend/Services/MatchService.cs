@@ -12,6 +12,7 @@ public interface IMatchService
     Task<List<MatchResponse>> GetByEventAsync(int eventId);
     Task<MatchResponse?> GetByIdAsync(int id);
     Task<bool> DeleteAsync(int id);
+    Task<MatchResponse?> ReopenAsync(int matchId);
     Task<(MatchResponse? result, string? error)> CreatePendingMatchAsync(int eventId, int round, int player1Id, int? player2Id);
 }
 
@@ -64,6 +65,11 @@ public class MatchService : IMatchService
             match.Player1Id != requestingUserId.Value &&
             match.Player2Id != requestingUserId.Value)
             return null;
+
+        // Validate: at least one game must be played, total games ≤ 3 (best-of-3)
+        int totalGames = request.Player1Wins + request.Player2Wins + request.Draws;
+        if (totalGames == 0) return null;
+        if (totalGames > 3) return null;
 
         match.Player1Wins = request.Player1Wins;
         match.Player2Wins = request.Player2Wins;
@@ -125,6 +131,25 @@ public class MatchService : IMatchService
         return true;
     }
 
+    public async Task<MatchResponse?> ReopenAsync(int matchId)
+    {
+        var match = await _db.Matches
+            .Include(m => m.Event)
+            .Include(m => m.Player1)
+            .Include(m => m.Player2)
+            .FirstOrDefaultAsync(m => m.Id == matchId);
+
+        if (match == null || match.IsBye || match.IsPending) return null;
+
+        match.Player1Wins = 0;
+        match.Player2Wins = 0;
+        match.Draws = 0;
+        match.IsPending = true;
+        await _db.SaveChangesAsync();
+
+        return ToResponse(match, match.Event.Name, match.Player1, match.Player2);
+    }
+
     public async Task<(MatchResponse? result, string? error)> CreatePendingMatchAsync(int eventId, int round, int player1Id, int? player2Id)
     {
         var ev = await _db.Events
@@ -177,9 +202,9 @@ public class MatchService : IMatchService
     internal static (int p1Points, int p2Points) CalculatePoints(Match m)
     {
         if (m.IsBye) return (1, 0);
-        if (m.Player1Wins > m.Player2Wins) return (2, 0);
-        if (m.Player2Wins > m.Player1Wins) return (0, 2);
-        return (1, 1); // equal wins = draw
+        if (m.Player1Wins > m.Player2Wins) return (3, 0);
+        if (m.Player2Wins > m.Player1Wins) return (0, 3);
+        return (1, 1); // draw
     }
 
     private static MatchResponse ToResponse(Match m, string eventName, User p1, User p2)

@@ -258,6 +258,43 @@ export default function DeckSubmissionPage() {
   // ── Save ──────────────────────────────────────────────────────────────────────
   const handleSave = async () => {
     if (cards.length === 0) { setSaveError('Add at least one card before saving.'); return; }
+
+    const format = event?.format ?? '';
+    const isLimited   = format === 'Draft' || format === 'Sealed';
+    const isCommander = format === 'Commander';
+    const BASIC_LANDS = new Set(['Plains','Island','Swamp','Mountain','Forest','Wastes',
+      'Snow-Covered Plains','Snow-Covered Island','Snow-Covered Swamp',
+      'Snow-Covered Mountain','Snow-Covered Forest','Snow-Covered Wastes']);
+
+    const mainCount      = cards.filter((c) => c.section === 'MainDeck').reduce((s, c) => s + c.quantity, 0);
+    const sideboardCount = cards.filter((c) => c.section === 'Sideboard').reduce((s, c) => s + c.quantity, 0);
+    const commanderCount = cards.filter((c) => c.section === 'Commander').reduce((s, c) => s + c.quantity, 0);
+
+    if (isCommander) {
+      if (commanderCount === 0) { setSaveError('Commander decks require at least one card in the Commander zone.'); return; }
+      if (mainCount + commanderCount < 100) { setSaveError(`Commander decks must have 100 cards (commander included). You have ${mainCount + commanderCount}.`); return; }
+      const counts = new Map<string, number>();
+      for (const c of cards) {
+        if (BASIC_LANDS.has(c.cardName)) continue;
+        counts.set(c.cardName, (counts.get(c.cardName) ?? 0) + c.quantity);
+      }
+      for (const [name, qty] of counts) {
+        if (qty > 1) { setSaveError(`Commander is singleton — '${name}' appears ${qty} times (max 1).`); return; }
+      }
+    } else {
+      const minMain = isLimited ? 40 : 60;
+      if (mainCount < minMain) { setSaveError(`Main deck must have at least ${minMain} cards. You have ${mainCount}.`); return; }
+      if (sideboardCount > 15) { setSaveError(`Sideboard cannot exceed 15 cards. You have ${sideboardCount}.`); return; }
+      const counts = new Map<string, number>();
+      for (const c of cards) {
+        if (BASIC_LANDS.has(c.cardName)) continue;
+        counts.set(c.cardName, (counts.get(c.cardName) ?? 0) + c.quantity);
+      }
+      for (const [name, qty] of counts) {
+        if (qty > 4) { setSaveError(`'${name}' appears ${qty} times. Maximum 4 copies allowed.`); return; }
+      }
+    }
+
     setSaving(true);
     setSaveMsg('');
     setSaveError('');

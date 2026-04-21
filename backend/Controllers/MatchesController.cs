@@ -50,4 +50,12 @@ public class MatchesController : ControllerBase
         var success = await _matches.DeleteAsync(id);
         return success ? NoContent() : NotFound();
     }
+
+    [HttpPost("{id}/reopen")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> Reopen(int id)
+    {
+        var result = await _matches.ReopenAsync(id);
+        return result == null ? NotFound() : Ok(result);
+    }
 }

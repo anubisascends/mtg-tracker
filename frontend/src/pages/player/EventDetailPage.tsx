@@ -238,6 +238,9 @@ function ActiveMatchCard({ match, myUserId, onSubmitted }: {
 
   const handleSubmit = async () => {
     setError('');
+    const total = myWins + oppWins + draws;
+    if (total === 0) { setError('Enter at least one game result.'); return; }
+    if (total > 3) { setError('Total games cannot exceed 3 (best-of-3).'); return; }
     setSubmitting(true);
     try {
       const p1Wins = iAmP1 ? myWins : oppWins;
@@ -266,6 +269,7 @@ function ActiveMatchCard({ match, myUserId, onSubmitted }: {
           <input
             style={ac.input}
             type="number" min={0} max={99} value={myWins}
+            title="Your game wins"
             onChange={(e) => setMyWins(Math.max(0, parseInt(e.target.value) || 0))}
           />
         </div>
@@ -274,6 +278,7 @@ function ActiveMatchCard({ match, myUserId, onSubmitted }: {
           <input
             style={ac.input}
             type="number" min={0} max={99} value={oppWins}
+            title={`${opponent}'s game wins`}
             onChange={(e) => setOppWins(Math.max(0, parseInt(e.target.value) || 0))}
           />
         </div>
@@ -282,6 +287,7 @@ function ActiveMatchCard({ match, myUserId, onSubmitted }: {
           <input
             style={ac.input}
             type="number" min={0} max={99} value={draws}
+            title="Drawn games"
             onChange={(e) => setDraws(Math.max(0, parseInt(e.target.value) || 0))}
           />
         </div>

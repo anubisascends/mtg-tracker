@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using MtgTracker.Api.Data;
 using MtgTracker.Api.DTOs.Players;
 using MtgTracker.Api.DTOs.Registrations;
+using MtgTracker.Api.Models;
 
 namespace MtgTracker.Api.Services;
 
@@ -29,7 +30,35 @@ public class PlayerService : IPlayerService
     public async Task<PlayerResponse?> GetByIdAsync(int id)
     {
         var user = await _db.Users.FindAsync(id);
-        return user == null ? null : ToResponse(user);
+        if (user == null) return null;
+
+        // Compute lifetime stats dynamically so they stay accurate regardless of event completion status
+        var matches = await _db.Matches
+            .Where(m => !m.IsPending && !m.IsBye && (m.Player1Id == id || m.Player2Id == id))
+            .ToListAsync();
+
+        int wins = 0, losses = 0, draws = 0;
+        foreach (var m in matches)
+        {
+            bool isP1 = m.Player1Id == id;
+            int myWins  = isP1 ? m.Player1Wins : m.Player2Wins;
+            int oppWins = isP1 ? m.Player2Wins : m.Player1Wins;
+            if (myWins > oppWins) wins++;
+            else if (oppWins > myWins) losses++;
+            else draws++;
+        }
+
+        return new PlayerResponse
+        {
+            Id = user.Id,
+            Username = user.Username,
+            Nickname = user.Nickname,
+            Email = user.Email,
+            LifetimeWins = wins,
+            LifetimeLosses = losses,
+            LifetimeDraws = draws,
+            CreatedAt = user.CreatedAt,
+        };
     }
 
     public async Task<List<RegistrationResponse>> GetRegistrationsForPlayerAsync(int playerId)

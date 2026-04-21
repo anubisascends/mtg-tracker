@@ -300,6 +300,7 @@ function Winners({ scores }: { scores: EventPlayerScore[] }) {
 
 function Standings({ scores }: { scores: EventPlayerScore[] }) {
   if (scores.length === 0) return <Empty>No standings yet.</Empty>;
+  const hasOMW = scores.some((s) => s.opponentMatchWinPct > 0);
   return (
     <div>
       <table style={{ borderCollapse: 'separate', borderSpacing: '0 3px', width: '100%' }}>
@@ -338,6 +339,13 @@ function Standings({ scores }: { scores: EventPlayerScore[] }) {
                     <span style={{ fontSize: '14px', fontWeight: 700, color: '#38bdf8' }}>{s.byes}B</span>
                   </>}
                 </td>
+                {/* OMW% tiebreaker */}
+                {hasOMW && (
+                  <td style={{ ...cellBase, whiteSpace: 'nowrap', textAlign: 'right' }}>
+                    <span style={{ fontSize: '12px', color: '#475569' }} title="Opponent Match Win %">OMW </span>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748b' }}>{s.opponentMatchWinPct.toFixed(1)}%</span>
+                  </td>
+                )}
                 {/* Points */}
                 <td style={{ ...cellBase, paddingRight: '14px', borderRadius: '0 8px 8px 0', textAlign: 'right', whiteSpace: 'nowrap' }}>
                   <span style={{ fontSize: '26px', fontWeight: 800, color: '#a855f7', lineHeight: 1 }}>{s.points}</span>
@@ -349,7 +357,7 @@ function Standings({ scores }: { scores: EventPlayerScore[] }) {
         </tbody>
       </table>
       <p style={{ color: '#475569', fontSize: '11px', margin: '6px 0 0', textAlign: 'center' }}>
-        Win = 2pts &nbsp;·&nbsp; Draw = 1pt &nbsp;·&nbsp; Bye = 1pt
+        Win = 3pts &nbsp;·&nbsp; Draw = 1pt &nbsp;·&nbsp; Bye = 1pt &nbsp;·&nbsp; Tiebreaker: OMW%
       </p>
     </div>
   );

@@ -154,6 +154,29 @@ public class EventService : IEventService
         if (nextPhase == RunPhase.Playing)
         {
             ev.CurrentRound = 1;
+
+            // Auto-generate round 1 pairings (all players have 0 pts so order is random — correct for round 1)
+            var activePlayers = ev.EventRegistrations
+                .Where(r => !r.IsEliminated && !r.IsDropped)
+                .Select(r => r.PlayerId)
+                .ToList();
+
+            if (activePlayers.Count >= 2)
+            {
+                var pairings = GenerateSwissPairings(activePlayers, [], []);
+                foreach (var (p1Id, p2Id) in pairings)
+                {
+                    ev.Matches.Add(new Match
+                    {
+                        EventId = ev.Id,
+                        Player1Id = p1Id,
+                        Player2Id = p2Id ?? p1Id,
+                        Round = 1,
+                        IsBye = !p2Id.HasValue,
+                        IsPending = p2Id.HasValue,
+                    });
+                }
+            }
         }
         else if (nextPhase == RunPhase.Completed)
         {
@@ -213,7 +236,12 @@ public class EventService : IEventService
             return (null, "Event is already at the earliest status.");
 
         if (ev.Status == EventStatus.Completed)
-            return (null, "Cannot reverse a completed event.");
+        {
+            ev.Status = EventStatus.InProgress;
+            ev.RunPhase = RunPhase.Playing;
+            await _db.SaveChangesAsync();
+            return (ToResponse(ev), null);
+        }
 
         if (ev.Status == EventStatus.InProgress)
         {
@@ -252,19 +280,99 @@ public class EventService : IEventService
         ApplyEliminations(ev);
         await _db.SaveChangesAsync();
 
-        // Determine active players
-        var activePlayerIds = ev.EventRegistrations
-            .Where(r => !r.IsEliminated && !r.IsDropped)
-            .Select(r => r.PlayerId)
+        // Active players sorted by current points (Swiss ranking)
+        var completedMatches = ev.Matches.Where(m => !m.IsPending).ToList();
+        var playerPoints = new Dictionary<int, int>();
+        foreach (var reg in ev.EventRegistrations.Where(r => !r.IsEliminated && !r.IsDropped))
+        {
+            var pid = reg.PlayerId;
+            int pts = completedMatches
+                .Where(m => m.Player1Id == pid || (!m.IsBye && m.Player2Id == pid))
+                .Sum(m => { var (p1, p2) = MatchService.CalculatePoints(m); return m.Player1Id == pid ? p1 : p2; });
+            playerPoints[pid] = pts;
+        }
+
+        var sortedPlayers = playerPoints.Keys
+            .OrderByDescending(pid => playerPoints[pid])
             .ToList();
 
-        if (activePlayerIds.Count < 2)
+        if (sortedPlayers.Count < 2)
             return (null, "Not enough active players to generate a new round.");
 
-        ev.CurrentRound++;
+        // Rematch tracking
+        var prevPairs = ev.Matches
+            .Where(m => !m.IsBye)
+            .Select(m => (Math.Min(m.Player1Id, m.Player2Id), Math.Max(m.Player1Id, m.Player2Id)))
+            .ToHashSet();
+
+        var prevByeRecipients = ev.Matches
+            .Where(m => m.IsBye)
+            .Select(m => m.Player1Id)
+            .ToHashSet();
+
+        var nextRound = ev.CurrentRound + 1;
+        var pairings = GenerateSwissPairings(sortedPlayers, prevPairs, prevByeRecipients);
+
+        ev.CurrentRound = nextRound;
+
+        foreach (var (p1Id, p2Id) in pairings)
+        {
+            ev.Matches.Add(new Match
+            {
+                EventId = eventId,
+                Player1Id = p1Id,
+                Player2Id = p2Id ?? p1Id,
+                Round = nextRound,
+                IsBye = !p2Id.HasValue,
+                IsPending = p2Id.HasValue,
+            });
+        }
 
         await _db.SaveChangesAsync();
         return (ToResponse(ev), null);
+    }
+
+    private static List<(int, int?)> GenerateSwissPairings(
+        List<int> sortedPlayers,
+        HashSet<(int, int)> prevPairs,
+        HashSet<int> prevByeRecipients)
+    {
+        var result = new List<(int, int?)>();
+        var unpaired = new List<int>(sortedPlayers);
+
+        // Assign bye to lowest-ranked player without a previous bye (odd count)
+        if (unpaired.Count % 2 == 1)
+        {
+            var byePlayer = -1;
+            for (int i = unpaired.Count - 1; i >= 0; i--)
+            {
+                if (!prevByeRecipients.Contains(unpaired[i])) { byePlayer = unpaired[i]; break; }
+            }
+            if (byePlayer < 0) byePlayer = unpaired[^1]; // all have byes — give to last
+            unpaired.Remove(byePlayer);
+            result.Add((byePlayer, null));
+        }
+
+        // Greedy Swiss: pair highest-ranked player with nearest opponent avoiding rematches
+        while (unpaired.Count >= 2)
+        {
+            var p1 = unpaired[0];
+            unpaired.RemoveAt(0);
+
+            var opponentIdx = -1;
+            for (int i = 0; i < unpaired.Count; i++)
+            {
+                var key = (Math.Min(p1, unpaired[i]), Math.Max(p1, unpaired[i]));
+                if (!prevPairs.Contains(key)) { opponentIdx = i; break; }
+            }
+            if (opponentIdx < 0) opponentIdx = 0; // forced rematch as last resort
+
+            var p2 = unpaired[opponentIdx];
+            unpaired.RemoveAt(opponentIdx);
+            result.Add((p1, p2));
+        }
+
+        return result;
     }
 
     private void ApplyEliminations(Event ev)
@@ -328,10 +436,13 @@ public class EventService : IEventService
             .Where(m => m.EventId == eventId && !m.IsPending)
             .ToListAsync();
 
-        return registrations.Select(reg =>
+        // First pass: build per-player basic stats including MWP and GWP
+        var stats = new Dictionary<int, PlayerStats>();
+        foreach (var reg in registrations)
         {
             var pid = reg.PlayerId;
-            int points = 0, wins = 0, losses = 0, draws = 0, byes = 0;
+            int points = 0, mWins = 0, mLosses = 0, mDraws = 0, byes = 0;
+            int gWins = 0, gLosses = 0, gDraws = 0;
 
             foreach (var m in matches.Where(m => !m.IsBye))
             {
@@ -339,44 +450,89 @@ public class EventService : IEventService
                 if (m.Player1Id == pid)
                 {
                     points += p1Pts;
-                    if (m.Player1Wins > m.Player2Wins) wins++;
-                    else if (m.Player2Wins > m.Player1Wins) losses++;
-                    else draws++;
+                    if (m.Player1Wins > m.Player2Wins) mWins++;
+                    else if (m.Player2Wins > m.Player1Wins) mLosses++;
+                    else mDraws++;
+                    gWins += m.Player1Wins; gLosses += m.Player2Wins; gDraws += m.Draws;
                 }
                 else if (m.Player2Id == pid)
                 {
                     points += p2Pts;
-                    if (m.Player2Wins > m.Player1Wins) wins++;
-                    else if (m.Player1Wins > m.Player2Wins) losses++;
-                    else draws++;
+                    if (m.Player2Wins > m.Player1Wins) mWins++;
+                    else if (m.Player1Wins > m.Player2Wins) mLosses++;
+                    else mDraws++;
+                    gWins += m.Player2Wins; gLosses += m.Player1Wins; gDraws += m.Draws;
                 }
             }
-
             foreach (var _ in matches.Where(m => m.IsBye && m.Player1Id == pid))
-            {
-                points++;
-                byes++;
-            }
+            { points++; byes++; }
 
-            return new EventPlayerScoreResponse
+            int totalM = mWins + mLosses + mDraws;
+            int totalG = gWins + gLosses + gDraws;
+            stats[pid] = new PlayerStats
             {
-                RegistrationId = reg.Id,
-                PlayerId = pid,
-                PlayerDisplayName = reg.Player.Nickname ?? reg.Player.Username,
+                Registration = reg,
                 Points = points,
-                MatchWins = wins,
-                MatchLosses = losses,
-                MatchDraws = draws,
-                Byes = byes,
-                IsEliminated = reg.IsEliminated,
-                EventLosses = reg.EventLosses,
-                IsDropped = reg.IsDropped,
-                DroppedAtRound = reg.DroppedAtRound
+                MWins = mWins, MLosses = mLosses, MDraws = mDraws, Byes = byes,
+                GWins = gWins,
+                MatchWinPct = totalM > 0 ? Math.Max(1.0 / 3, (double)mWins / totalM) : 1.0 / 3,
+                GameWinPct  = totalG > 0 ? Math.Max(1.0 / 3, (double)gWins / totalG) : 1.0 / 3,
             };
-        })
-        .OrderByDescending(s => s.Points)
-        .ThenBy(s => s.PlayerDisplayName)
-        .ToList();
+        }
+
+        // Second pass: opponent-based tiebreakers (OMW%, OGW%)
+        var result = new List<EventPlayerScoreResponse>();
+        foreach (var (pid, ps) in stats)
+        {
+            var opponents = matches
+                .Where(m => !m.IsBye && (m.Player1Id == pid || m.Player2Id == pid))
+                .Select(m => m.Player1Id == pid ? m.Player2Id : m.Player1Id)
+                .Distinct().ToList();
+
+            double omwp = opponents.Count > 0
+                ? Math.Max(1.0 / 3, opponents.Average(o => stats.TryGetValue(o, out var os) ? os.MatchWinPct : 1.0 / 3))
+                : 1.0 / 3;
+            double ogwp = opponents.Count > 0
+                ? Math.Max(1.0 / 3, opponents.Average(o => stats.TryGetValue(o, out var os) ? os.GameWinPct  : 1.0 / 3))
+                : 1.0 / 3;
+
+            result.Add(new EventPlayerScoreResponse
+            {
+                RegistrationId = ps.Registration.Id,
+                PlayerId = pid,
+                PlayerDisplayName = ps.Registration.Player.Nickname ?? ps.Registration.Player.Username,
+                Points = ps.Points,
+                MatchWins = ps.MWins, MatchLosses = ps.MLosses, MatchDraws = ps.MDraws, Byes = ps.Byes,
+                IsEliminated = ps.Registration.IsEliminated,
+                EventLosses = ps.Registration.EventLosses,
+                IsDropped = ps.Registration.IsDropped,
+                DroppedAtRound = ps.Registration.DroppedAtRound,
+                OpponentMatchWinPct = Math.Round(omwp * 100, 1),
+                GameWinPct          = Math.Round(ps.GameWinPct * 100, 1),
+                OpponentGameWinPct  = Math.Round(ogwp * 100, 1),
+            });
+        }
+
+        return result
+            .OrderByDescending(s => s.Points)
+            .ThenByDescending(s => s.OpponentMatchWinPct)
+            .ThenByDescending(s => s.GameWinPct)
+            .ThenByDescending(s => s.OpponentGameWinPct)
+            .ThenBy(s => s.PlayerDisplayName)
+            .ToList();
+    }
+
+    private sealed class PlayerStats
+    {
+        public EventRegistration Registration { get; set; } = null!;
+        public int Points { get; set; }
+        public int MWins { get; set; }
+        public int MLosses { get; set; }
+        public int MDraws { get; set; }
+        public int Byes { get; set; }
+        public int GWins { get; set; }
+        public double MatchWinPct { get; set; }
+        public double GameWinPct { get; set; }
     }
 
     public async Task<EventResponse?> StartTimerAsync(int eventId, int durationSeconds)
