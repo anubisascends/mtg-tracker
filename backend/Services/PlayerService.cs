@@ -8,9 +8,12 @@ namespace MtgTracker.Api.Services;
 
 public interface IPlayerService
 {
-    Task<List<PlayerResponse>> GetAllAsync();
+    Task<List<PlayerResponse>> GetAllAsync(bool archived = false);
     Task<PlayerResponse?> GetByIdAsync(int id);
     Task<List<RegistrationResponse>> GetRegistrationsForPlayerAsync(int playerId);
+    Task<(PlayerResponse? player, string? error)> UpdateAsync(int id, UpdatePlayerRequest request);
+    Task<string?> DeleteAsync(int id, int requestingUserId);
+    Task<bool> UnarchiveAsync(int id);
 }
 
 public class PlayerService : IPlayerService
@@ -19,10 +22,10 @@ public class PlayerService : IPlayerService
 
     public PlayerService(AppDbContext db) => _db = db;
 
-    public async Task<List<PlayerResponse>> GetAllAsync()
+    public async Task<List<PlayerResponse>> GetAllAsync(bool archived = false)
     {
         return await _db.Users
-            .Where(u => u.Role == "player")
+            .Where(u => u.IsArchived == archived)
             .Select(u => ToResponse(u))
             .ToListAsync();
     }
@@ -54,6 +57,7 @@ public class PlayerService : IPlayerService
             Username = user.Username,
             Nickname = user.Nickname,
             Email = user.Email,
+            Role = user.Role,
             LifetimeWins = wins,
             LifetimeLosses = losses,
             LifetimeDraws = draws,
@@ -77,12 +81,73 @@ public class PlayerService : IPlayerService
             .ToListAsync();
     }
 
+    public async Task<(PlayerResponse? player, string? error)> UpdateAsync(int id, UpdatePlayerRequest request)
+    {
+        var user = await _db.Users.FindAsync(id);
+        if (user == null) return (null, null);
+
+        var validRoles = new[] { "player", "admin" };
+        if (!validRoles.Contains(request.Role))
+            return (null, "Role must be 'player' or 'admin'.");
+
+        var duplicate = await _db.Users.AnyAsync(u =>
+            u.Id != id && (u.Username == request.Username || u.Email == request.Email));
+        if (duplicate)
+            return (null, "Username or email is already in use.");
+
+        user.Username = request.Username.Trim();
+        user.Email = request.Email.Trim();
+        user.Nickname = string.IsNullOrWhiteSpace(request.Nickname) ? null : request.Nickname.Trim();
+        user.Role = request.Role;
+
+        await _db.SaveChangesAsync();
+        return (await GetByIdAsync(id), null);
+    }
+
+    public async Task<string?> DeleteAsync(int id, int requestingUserId)
+    {
+        if (id == requestingUserId)
+            return "Cannot delete your own account.";
+
+        var user = await _db.Users.FindAsync(id);
+        if (user == null) return "not_found";
+
+        var hasMatches = await _db.Matches.AnyAsync(m => m.Player1Id == id || m.Player2Id == id);
+        if (hasMatches)
+        {
+            user.IsArchived = true;
+            await _db.SaveChangesAsync();
+            return null;
+        }
+
+        var submissions = await _db.DeckSubmissions
+            .Where(d => d.PlayerId == id)
+            .Include(d => d.Cards)
+            .ToListAsync();
+        _db.DeckSubmissions.RemoveRange(submissions);
+
+        _db.Users.Remove(user);
+        await _db.SaveChangesAsync();
+        return null;
+    }
+
+    public async Task<bool> UnarchiveAsync(int id)
+    {
+        var user = await _db.Users.FindAsync(id);
+        if (user == null) return false;
+
+        user.IsArchived = false;
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
     private static PlayerResponse ToResponse(MtgTracker.Api.Models.User u) => new()
     {
         Id = u.Id,
         Username = u.Username,
         Nickname = u.Nickname,
         Email = u.Email,
+        Role = u.Role,
         LifetimeWins = u.LifetimeWins,
         LifetimeLosses = u.LifetimeLosses,
         LifetimeDraws = u.LifetimeDraws,

@@ -53,7 +53,8 @@ public class PlayersController : ControllerBase
 
     [HttpGet]
     [Authorize(Roles = "admin")]
-    public async Task<IActionResult> GetAll() => Ok(await _players.GetAllAsync());
+    public async Task<IActionResult> GetAll([FromQuery] bool archived = false) =>
+        Ok(await _players.GetAllAsync(archived));
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(int id)
@@ -79,6 +80,41 @@ public class PlayersController : ControllerBase
             return Forbid();
 
         return Ok(await _players.GetRegistrationsForPlayerAsync(id));
+    }
+
+    [HttpPost("{id}/unarchive")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> UnarchivePlayer(int id)
+    {
+        var ok = await _players.UnarchiveAsync(id);
+        return ok ? NoContent() : NotFound();
+    }
+
+    [HttpPut("{id}")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> UpdatePlayer(int id, UpdatePlayerRequest request)
+    {
+        var requestingUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+
+        // Prevent admin from demoting themselves
+        if (id == requestingUserId && request.Role != "admin")
+            return BadRequest(new { message = "Cannot demote your own account." });
+
+        var (player, error) = await _players.UpdateAsync(id, request);
+        if (player == null && error == null) return NotFound();
+        if (error != null) return Conflict(new { message = error });
+        return Ok(player);
+    }
+
+    [HttpDelete("{id}")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> DeletePlayer(int id)
+    {
+        var requestingUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+        var error = await _players.DeleteAsync(id, requestingUserId);
+        if (error == "not_found") return NotFound();
+        if (error != null) return BadRequest(new { message = error });
+        return NoContent();
     }
 
     [HttpPut("{id}/reset-password")]

@@ -7,6 +7,7 @@ public class PlayerResponse
     public string? Nickname { get; set; }
     public string DisplayName => string.IsNullOrEmpty(Nickname) ? Username : $"{Username} ({Nickname})";
     public string Email { get; set; } = string.Empty;
+    public string Role { get; set; } = "player";
     public int LifetimeWins { get; set; }
     public int LifetimeLosses { get; set; }
     public int LifetimeDraws { get; set; }

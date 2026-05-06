@@ -12,6 +12,7 @@ public class User
     public int LifetimeLosses { get; set; }
     public int LifetimeDraws { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public bool IsArchived { get; set; } = false;
 
     public ICollection<EventRegistration> EventRegistrations { get; set; } = new List<EventRegistration>();
 }

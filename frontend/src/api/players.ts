@@ -6,11 +6,19 @@ export interface PlayerResponse {
   nickname: string | null;
   displayName: string;
   email: string;
+  role: string;
   lifetimeWins: number;
   lifetimeLosses: number;
   lifetimeDraws: number;
   totalMatches: number;
   createdAt: string;
+}
+
+export interface AdminUpdatePlayerRequest {
+  username: string;
+  email: string;
+  nickname?: string;
+  role: string;
 }
 
 export interface AdminCreatePlayerRequest {
@@ -27,7 +35,8 @@ export interface AdminCreatePlayerResponse {
   emailConfigured: boolean;
 }
 
-export const getPlayers = () => client.get<PlayerResponse[]>('/players').then((r) => r.data);
+export const getPlayers = (archived = false) =>
+  client.get<PlayerResponse[]>('/players', { params: { archived } }).then((r) => r.data);
 
 export const getPlayer = (id: number) => client.get<PlayerResponse>(`/players/${id}`).then((r) => r.data);
 
@@ -42,3 +51,12 @@ export const generatePlayerInvite = (playerId: number) =>
 
 export const sendPlayerInviteEmail = (playerId: number) =>
   client.post(`/players/${playerId}/send-invite-email`);
+
+export const adminUpdatePlayer = (id: number, data: AdminUpdatePlayerRequest) =>
+  client.put<PlayerResponse>(`/players/${id}`, data).then((r) => r.data);
+
+export const adminDeletePlayer = (id: number) =>
+  client.delete(`/players/${id}`);
+
+export const adminUnarchivePlayer = (id: number) =>
+  client.post(`/players/${id}/unarchive`);

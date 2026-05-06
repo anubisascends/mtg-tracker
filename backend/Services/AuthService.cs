@@ -62,6 +62,12 @@ public class AuthService : IAuthService
         if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             return null;
 
+        if (user.IsArchived)
+        {
+            user.IsArchived = false;
+            await _db.SaveChangesAsync();
+        }
+
         return BuildAuthResponse(user);
     }
 
